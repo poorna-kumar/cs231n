@@ -2,6 +2,7 @@ import copy
 import time
 
 import torch
+import numpy as np
 
 # Detect if we have a GPU available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -90,4 +91,12 @@ def get_predictions(model, dataloader):
             torch.sigmoid(outputs)
         outputs_list.extend(outputs.data)
         labels_list.extend(labels.data)
+    # Convert model outputs to numpy ndarray
+    for idx, el in enumerate(outputs_list):
+        outputs_list[idx] = el.numpy()
+    outputs_list = np.asarray(outputs_list)
+    # Convert true labels to numpy ndarray
+    for idx, el in enumerate(labels_list):
+        labels_list[idx] = el.numpy()
+    labels_list = np.asarray(labels_list)
     return outputs_list, labels_list
