@@ -25,10 +25,11 @@ class VCOCODataset(VisionDataset):
         coco_data_type="train2017",
         output_size=(224, 224),
         transform=NORMALIZE_DEFAULT,
-        override_len=None
+        override_len=None,
+        combine_labels=None,
     ):
         logger.info("Loading VCOCO annotations...")
-        self.vcoco = VCOCO(path_to_vcoco_anns)
+        self.vcoco = VCOCO(path_to_vcoco_anns, combine_labels)
         logger.info("Done!")
         self.coco_data_dir = coco_data_dir
         self.coco_data_type = coco_data_type
