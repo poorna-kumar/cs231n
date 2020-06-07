@@ -14,12 +14,9 @@ def coverage_err(y_true, y_pred):
     """
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
-    if any(np.sum(y_true, axis=1) == 0):
-        raise ValueError(
-            "Every sample must correspond to at least one positive label."
-            "No row of y_true can sum to 0."
-        )
-    return coverage_error(y_true, y_pred)
+    # We want to exclude rows with 0 labels from the function
+    rows_to_keep = np.sum(y_true, axis = 1) != 0
+    return coverage_error(y_true[rows_to_keep], y_pred[rows_to_keep])
 
 
 def avg_auc_macro(y_true, y_pred):
