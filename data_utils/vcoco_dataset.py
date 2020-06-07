@@ -11,6 +11,7 @@ from torch import tensor
 import torch
 
 from .vcoco import VCOCO
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -45,15 +46,19 @@ class VCOCODataset(VisionDataset):
         if self.override_len is not None:
             assert self.override_len <= len(self.vcoco.ann_ids)
 
-    def __getitem__(self, idx):
+    @lru_cache(maxsize=10000)
+    def _get_cropped_scaled_ann(self, idx):
         """
-        Index is a number that can range from 0 ... N_annotations - 1.
-
-        Given index, return an image, cropped just to the annotation, and the target.
-        The annotation is fed into roi_align so that it is returned in a standard size.
-        The target here is a binary vector of length self.vcoco.n_classes.
+        This computes the first return value of __getitem__. See the doc on
+        __getitem__ for details. Since this is really slow, but deterministic,
+        it is wrapped in a cache.
+        IMPORTANT: The maxsize of the cache MUST be more than than the number of images,
+        so that nothing gets evicted from the cache -- otherwise, due to the sequential
+        access pattern, the LRU cache will likely be useless.
+        We can also fix this by using a cache with a different eviction algorithm, but
+        doing it this way for simplicity, since the data does fit in memory and we have
+        an easy to drop-in implementation of lru_cache.
         """
-        assert 0 <= idx < len(self)
         # Get bounding box coordinates
         ann_id = self.vcoco.ann_ids[idx]
         x, y, w, h = self.coco.loadAnns([ann_id])[0]["bbox"]
@@ -69,7 +74,19 @@ class VCOCODataset(VisionDataset):
         scaled_ann = scaled_ann / 255
         if self.transform is not None:
             scaled_ann = self.transform(scaled_ann)
-        target = tensor(self.vcoco.ann_labels[:, idx], dtype=img_tnsr.dtype)
+        return scaled_ann
+
+    def __getitem__(self, idx):
+        """
+        Index is a number that can range from 0 ... N_annotations - 1.
+
+        Given index, return an image, cropped just to the annotation, and the target.
+        The annotation is fed into roi_align so that it is returned in a standard size.
+        The target here is a binary vector of length self.vcoco.n_classes.
+        """
+        assert 0 <= idx < len(self)
+        scaled_ann = self._get_cropped_scaled_ann(idx)
+        target = tensor(self.vcoco.ann_labels[:, idx], dtype=scaled_ann.dtype)
         return scaled_ann, target
 
     def load_img_from_ann_id(self, ann_id):
