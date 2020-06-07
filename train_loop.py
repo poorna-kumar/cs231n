@@ -6,6 +6,7 @@ import numpy as np
 
 # Detect if we have a GPU available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(f"Train loop: will use device {device}")
 
 
 def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
@@ -13,8 +14,9 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
 
     val_acc_history = []
 
-    # best_model_wts = copy.deepcopy(model.state_dict())
+    best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+    best_val_loss = float("inf")
 
     for epoch in range(num_epochs):
         start = time.time()
@@ -63,9 +65,9 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
             # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                # best_model_wts = copy.deepcopy(model.state_dict())
+            if phase == 'val' and epoch_loss < best_val_loss:
+                best_val_loss = epoch_loss
+                best_model_wts = copy.deepcopy(model.state_dict())
             if phase == 'val':
                 val_acc_history.append(epoch_acc)
         print(f"Epoch done. Took {time.time()-start} seconds")
@@ -76,7 +78,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     print('Best val Acc: {:4f}'.format(best_acc))
 
     # load best model weights
-    # model.load_state_dict(best_model_wts)
+    model.load_state_dict(best_model_wts)
     return model, val_acc_history
 
 
@@ -93,10 +95,18 @@ def get_predictions(model, dataloader):
         labels_list.extend(labels.data)
     # Convert model outputs to numpy ndarray
     for idx, el in enumerate(outputs_list):
+        # If running on GPU, we need to call .cpu() to copy the tensor to host memory
+        # before we can convert it to numpy
+        if 'cuda' in device.type:
+            el = el.cpu()
         outputs_list[idx] = el.numpy()
     outputs_list = np.asarray(outputs_list)
     # Convert true labels to numpy ndarray
     for idx, el in enumerate(labels_list):
+        # If running on GPU, we need to call .cpu() to copy the tensor to host memory
+        # before we can convert it to numpy
+        if 'cuda' in device.type:
+            el = el.cpu()
         labels_list[idx] = el.numpy()
     labels_list = np.asarray(labels_list)
     return outputs_list, labels_list
